@@ -1,30 +1,42 @@
 <img width=275 align="right" src="./imgs/screenshot.png">
 
-# Obsidian TikZJax
+# Obsidian Local LaTeX Renderer (Fork of TikZJax)
 
-A plugin for Obsidian that lets you render LaTeX and TikZ diagrams in your notes.
+A plugin for Obsidian that lets you render *any* LaTeX and TikZ diagrams in your notes using a **local LaTeX installation**.
 
-You can render graphs, figures, circuits, chemical diagrams, commutative diagrams, and more.
+This is a fork of the excellent [Obsidian TikZJax plugin](https://github.com/artisticat1/obsidian-tikzjax) by [@artisticat1](https://github.com/artisticat1). While the original plugin relied on an embedded WebAssembly compiler restricted to a predefined set of packages, this version utilizes your own local LaTeX toolchain. This means **any LaTeX package** installed on your system can be used!
 
-The following packages are available in `\usepackage{}`:
-- chemfig
-- tikz-cd
-- circuitikz
-- pgfplots
-- array
-- amsmath
-  - amstext
-- amsfonts
-- amssymb
-- tikz-3dplot
+## Prerequisites & Configuration
+
+To use this plugin, you must have the following installed on your system:
+1. A LaTeX distribution (e.g., [MiKTeX](https://miktex.org/) or [TeX Live](https://tug.org/texlive/)).
+2. **`dvisvgm`** (usually included in most LaTeX distributions).
+
+**Plugin Settings:**
+After enabling the plugin, go to the Obsidian plugin settings. Verify or update the **LaTeX Compiler Path** (default is `latex`) and **dvisvgm Path** (default is `dvisvgm`). If these tools are not in your system's PATH, you will need to provide the full absolute paths to the executables.
 
 ## Usage
-Content inside of `tikz` code blocks will be rendered by TikZJax.
 
-- Remember to load any packages you need with `\usepackage{}`, and include `\begin{document}` and `\end{document}`.
+Content inside of `tikz` or `latex` code blocks will be rendered by the plugin.
 
-- The standalone document class is used (`\documentclass{standalone}`).
+Since the plugin invokes your local compiler directly, **you must write a full, valid LaTeX document**. 
 
+- Wrap your code in a document class (e.g., `\documentclass[tikz, border=10pt]{standalone}`).
+- Remember to load any packages you need with `\usepackage{}`.
+- Include `\begin{document}` and `\end{document}`.
+
+### Troubleshooting
+
+**"MiKTeX session could not be initialized" Error**
+If you are using MiKTeX on Windows and encounter a session initialization error, you may need to manually register the MiKTeX DLLs. Run the following commands in the Command Prompt (adjust the path and the `240400` version number to match your installed version of MiKTeX):
+
+```cmd
+cd %LOCALAPPDATA%\Programs\MiKTeX\miktex\bin\x64
+regsvr32 MiKTeX240400-core-PS.dll
+regsvr32 MiKTeX240400-core.dll
+regsvr32 MiKTeX240400-packagemanager.dll
+regsvr32 MiKTeX240400-packagemanager-PS.dll
+```
 
 ### Examples
 <img width=300 align="right" src="./imgs/img1.png">
@@ -173,5 +185,5 @@ C' \arrow[rr,"k'" near end] \arrow[dr,swap,"c"] && D' \arrow[dr,swap,"d"] \\
 Contributions are welcome! For information on building Tikzjax, have a look at the [contributing guide](https://github.com/artisticat1/obsidian-tikzjax/issues/68), courtesy of [@thecodechemist99](https://github.com/thecodechemist99).
 
 ## Acknowledgements
-This plugin would not be possible without [TikZJax](https://github.com/kisonecat/tikzjax) by [@kisonecat](https://github.com/kisonecat)! In particular, it uses
-[@drgrice1's fork](https://github.com/drgrice1/tikzjax/tree/ww-modifications) that adds some additional features.
+This fork is based on the [Obsidian TikZJax plugin](https://github.com/artisticat1/obsidian-tikzjax) by [@artisticat1](https://github.com/artisticat1), which itself is built upon the wonderful [TikZJax](https://github.com/kisonecat/tikzjax) framework by [@kisonecat](https://github.com/kisonecat), including the additional branch modifications from [@drgrice1](https://github.com/drgrice1).
+

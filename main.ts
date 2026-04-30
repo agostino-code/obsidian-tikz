@@ -1,10 +1,13 @@
-import { Plugin, WorkspaceWindow } from 'obsidian';
+import { Plugin, WorkspaceWindow, Notice, MarkdownPostProcessorContext } from 'obsidian';
 import { TikzjaxPluginSettings, DEFAULT_SETTINGS, TikzjaxSettingTab } from "./settings";
 import { optimize } from "./svgo.browser";
 
-// @ts-ignore
-import tikzjaxJs from 'inline:./tikzjax.js';
-
+import { exec } from 'child_process';
+import * as fs from 'fs/promises';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import * as localForage from "localforage";
+import { createHash } from 'crypto';
 
 export default class TikzjaxPlugin extends Plugin {
 	settings: TikzjaxPluginSettings;
@@ -13,22 +16,13 @@ export default class TikzjaxPlugin extends Plugin {
 		await this.loadSettings();
 		this.addSettingTab(new TikzjaxSettingTab(this.app, this));
 
-		// Support pop-out windows
-		this.app.workspace.onLayoutReady(() => {
-			this.loadTikZJaxAllWindows();
-			this.registerEvent(this.app.workspace.on("window-open", (win, window) => {
-				this.loadTikZJax(window.document);
-			}));
-		});
-
-
 		this.addSyntaxHighlighting();
 		
-		this.registerTikzCodeBlock();
+		this.registerMarkdownCodeBlockProcessor("tikz", this.processLatexCodeBlock.bind(this));
+		this.registerMarkdownCodeBlockProcessor("latex", this.processLatexCodeBlock.bind(this));
 	}
 
 	onunload() {
-		this.unloadTikZJaxAllWindows();
 		this.removeSyntaxHighlighting();
 	}
 
@@ -41,77 +35,95 @@ export default class TikzjaxPlugin extends Plugin {
 	}
 
 
-	loadTikZJax(doc: Document) {
-		const s = document.createElement("script");
-		s.id = "tikzjax";
-		s.type = "text/javascript";
-		s.innerText = tikzjaxJs;
-		doc.body.appendChild(s);
-
-
-		doc.addEventListener('tikzjax-load-finished', this.postProcessSvg);
+	getHash(source: string) {
+		return createHash('md5').update(source).digest('hex');
 	}
 
-	unloadTikZJax(doc: Document) {
-		const s = doc.getElementById("tikzjax");
-		s.remove();
-
-		doc.removeEventListener("tikzjax-load-finished", this.postProcessSvg);
-	}
-
-	loadTikZJaxAllWindows() {
-		for (const window of this.getAllWindows()) {
-			this.loadTikZJax(window.document);
-		}
-	}
-
-	unloadTikZJaxAllWindows() {
-		for (const window of this.getAllWindows()) {
-			this.unloadTikZJax(window.document);
-		}
-	}
-
-	getAllWindows() {
-		// Via https://discord.com/channels/686053708261228577/840286264964022302/991591350107635753
-
-		const windows = [];
-		
-		// push the main window's root split to the list
-		windows.push(this.app.workspace.rootSplit.win);
-		
-		// @ts-ignore floatingSplit is undocumented
-		const floatingSplit = this.app.workspace.floatingSplit;
-		floatingSplit.children.forEach((child: any) => {
-			// if this is a window, push it to the list 
-			if (child instanceof WorkspaceWindow) {
-				windows.push(child.win);
+	async processLatexCodeBlock(source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) {
+		const hash = this.getHash(source);
+		try {
+			const cached = await localForage.getItem<string>(hash);
+			if (cached) {
+				this.renderSvg(el, cached);
+				return;
 			}
+		} catch (err) {
+			console.error("TikZJax cache read error", err);
+		}
+
+		const texContent = source;
+
+		console.log("Compiling LaTeX", texContent);
+
+		const tempDir = await fs.mkdtemp(join(tmpdir(), 'tikzjax-'));
+		const texFile = join(tempDir, 'doc.tex');
+		const dviFile = join(tempDir, 'doc.dvi');
+		const pdfFile = join(tempDir, 'doc.pdf');
+
+		await fs.writeFile(texFile, texContent);
+
+		const compile = new Promise<string>((resolve, reject) => {
+			const env = Object.assign({}, process.env);
+			
+			// Change from --pdf to direct DVI to bypass GhostScript dependence in MiKTeX dvisvgm
+			// We also switch the compiler default dynamically from pdflatex to latex if it is default
+			const compilerPath = this.settings.compilerPath === 'pdflatex' ? 'latex' : this.settings.compilerPath;
+
+			exec(`${compilerPath} -interaction=nonstopmode -halt-on-error -output-directory="${tempDir}" "${texFile}"`, { cwd: tempDir, env }, (error, stdout, stderr) => {
+				if (error) {
+					console.error("latex error", stdout, stderr);
+					reject("LaTeX compilation failed: " + error.message + "\n\n" + stdout);
+				} else {
+					exec(`${this.settings.dvisvgmPath} --no-fonts -e -o "doc.svg" "${dviFile}"`, { cwd: tempDir, env }, async (error, stdout, stderr) => {
+						if (error) {
+							console.error("dvisvgm error", stdout, stderr);
+							reject("dvisvgm failed: " + error.message + "\n\n" + stdout);
+						} else {
+							try {
+								const svgData = await fs.readFile(join(tempDir, 'doc.svg'), "utf8");
+								resolve(svgData);
+							} catch (e) {
+								reject("Failed to read SVG: " + e);
+							}
+						}
+					});
+				}
+			});
 		});
 
-		return windows;
+		try {
+			let svg = await compile;
+			svg = this.optimizeSVG(svg);
+			await localForage.setItem(hash, svg);
+			this.renderSvg(el, svg);
+		} catch (e) {
+			console.error(e);
+			el.createEl("pre").createEl("code", { text: e as string });
+		} finally {
+			try {
+				await fs.rm(tempDir, { recursive: true, force: true });
+			} catch(e) {}
+		}
 	}
 
-
-	registerTikzCodeBlock() {
-		this.registerMarkdownCodeBlockProcessor("tikz", (source, el, ctx) => {
-			const script = el.createEl("script");
-
-			script.setAttribute("type", "text/tikz");
-			script.setAttribute("data-show-console", "true");
-
-			script.setText(this.tidyTikzSource(source));
-		});
+	renderSvg(el: HTMLElement, svg: string) {
+		const container = el.createDiv({ cls: 'tikz-container' });
+		if (this.settings.invertColorsInDarkMode) {
+			svg = this.colorSVGinDarkMode(svg);
+		}
+		container.innerHTML = svg;
 	}
-
 
 	addSyntaxHighlighting() {
 		// @ts-ignore
 		window.CodeMirror.modeInfo.push({name: "Tikz", mime: "text/x-latex", mode: "stex"});
+		// @ts-ignore
+		window.CodeMirror.modeInfo.push({name: "LaTeX", mime: "text/x-latex", mode: "stex"});
 	}
 
 	removeSyntaxHighlighting() {
 		// @ts-ignore
-		window.CodeMirror.modeInfo = window.CodeMirror.modeInfo.filter(el => el.name != "Tikz");
+		window.CodeMirror.modeInfo = window.CodeMirror.modeInfo.filter((el: any) => el.name != "Tikz" && el.name != "LaTeX");
 	}
 
 	tidyTikzSource(tikzSource: string) {
@@ -166,21 +178,6 @@ export default class TikzjaxPlugin extends Plugin {
 			]
 		// @ts-ignore
 		}).data;
-	}
-
-
-	postProcessSvg = (e: Event) => {
-
-		const svgEl = e.target as HTMLElement;
-		let svg = svgEl.outerHTML;
-
-		if (this.settings.invertColorsInDarkMode) {
-			svg = this.colorSVGinDarkMode(svg);
-		}
-
-		svg = this.optimizeSVG(svg);
-
-		svgEl.outerHTML = svg;
 	}
 }
 

@@ -5,10 +5,14 @@ import * as localForage from "localforage";
 
 export interface TikzjaxPluginSettings {
 	invertColorsInDarkMode: boolean;
+	compilerPath: string;
+	dvisvgmPath: string;
 }
 
 export const DEFAULT_SETTINGS: TikzjaxPluginSettings = {
-	invertColorsInDarkMode: true
+	invertColorsInDarkMode: true,
+	compilerPath: 'pdflatex',
+	dvisvgmPath: 'dvisvgm'
 }
 
 
@@ -41,6 +45,29 @@ export class TikzjaxSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.invertColorsInDarkMode = value;
 
+					await this.plugin.saveSettings();
+				}));
+
+
+		new Setting(containerEl)
+			.setName('LaTeX Compiler Path')
+			.setDesc('Path to the LaTeX compiler (e.g., pdflatex). If it is in your PATH, you can just use the command name.')
+			.addText(text => text
+				.setPlaceholder('pdflatex')
+				.setValue(this.plugin.settings.compilerPath)
+				.onChange(async (value) => {
+					this.plugin.settings.compilerPath = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('dvisvgm Path')
+			.setDesc('Path to the dvisvgm executable.')
+			.addText(text => text
+				.setPlaceholder('dvisvgm')
+				.setValue(this.plugin.settings.dvisvgmPath)
+				.onChange(async (value) => {
+					this.plugin.settings.dvisvgmPath = value;
 					await this.plugin.saveSettings();
 				}));
 
