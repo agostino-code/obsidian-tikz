@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-tikz",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "Render LaTeX and TikZ diagrams locally using your system TeX installation.",
 	"main": "main.js",
 	"scripts": {
