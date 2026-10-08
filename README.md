@@ -49,7 +49,7 @@ Because this plugin executes your local compiler, you must have the following to
 ### From Obsidian Community Plugins (Recommended)
 1. In Obsidian, open **Settings** → **Community plugins**.
 2. Turn off **Restricted mode** if prompted.
-3. Click **Browse** and search for **"LaTeX & TikZ Renderer"** (or `obsidian-tikz`).
+3. Click **Browse** and search for **"LaTeX & TikZ Renderer"** (or `latex-tikz-renderer`).
 4. Click **Install**, then **Enable**.
 
 ### Via BRAT (for beta releases)
@@ -59,8 +59,8 @@ Because this plugin executes your local compiler, you must have the following to
 
 ### Manual Installation
 1. Download `main.js`, `manifest.json`, and `styles.css` from the latest [Release](https://github.com/agostino-code/obsidian-tikz/releases).
-2. Inside your vault, navigate to `.obsidian/plugins/` and create a folder named `obsidian-tikz`.
-3. Copy the downloaded files into `.obsidian/plugins/obsidian-tikz/`.
+2. Inside your vault, navigate to `.obsidian/plugins/` and create a folder named `latex-tikz-renderer`.
+3. Copy the downloaded files into `.obsidian/plugins/latex-tikz-renderer/`.
 4. In Obsidian, reload plugins and enable **LaTeX & TikZ Renderer**.
 
 ---

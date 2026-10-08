@@ -1,5 +1,5 @@
 {
-	"id": "obsidian-tikz",
+	"id": "latex-tikz-renderer",
 	"name": "LaTeX & TikZ Renderer",
 	"version": "1.0.0",
 	"minAppVersion": "1.0.0",
