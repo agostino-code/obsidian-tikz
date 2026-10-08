@@ -5,7 +5,7 @@ import { execFile } from 'child_process';
 import * as fs from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import * as localForage from "localforage";
+import { DiagramCache } from './cache';
 import { createHash } from 'crypto';
 
 interface CommandOutput {
@@ -54,6 +54,7 @@ async function pathExists(filePath: string): Promise<boolean> {
 
 export default class TikzjaxPlugin extends Plugin {
 	settings: TikzjaxPluginSettings;
+	cache: DiagramCache = new DiagramCache();
 
 	async onload() {
 		await this.loadSettings();
@@ -171,7 +172,7 @@ export default class TikzjaxPlugin extends Plugin {
 		const hash = this.getHash(texContent);
 
 		try {
-			const cached = await localForage.getItem<string>(hash);
+			const cached = await this.cache.get(hash);
 			if (cached) {
 				this.renderSvg(el, cached);
 				return;
@@ -240,7 +241,7 @@ export default class TikzjaxPlugin extends Plugin {
 			let svg = await fs.readFile(svgFile, 'utf8');
 			svg = this.cleanSvg(svg);
 
-			await localForage.setItem(hash, svg);
+			await this.cache.set(hash, svg);
 			this.renderSvg(el, svg);
 		} catch (err: unknown) {
 			console.error("TikZ rendering error", err);

@@ -1,6 +1,5 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import TikzjaxPlugin from "./main";
-import * as localForage from "localforage";
 
 export interface TikzjaxPluginSettings {
 	invertColorsInDarkMode: boolean;
@@ -31,12 +30,6 @@ export class TikzjaxSettingTab extends PluginSettingTab {
 	constructor(app: App, plugin: TikzjaxPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
-
-		try {
-			localForage.config({ name: 'ObsidianTikz', storeName: 'svgImages' });
-		} catch (error) {
-			console.error("LocalForage config error", error);
-		}
 	}
 
 	display(): void {
@@ -142,14 +135,13 @@ export class TikzjaxSettingTab extends PluginSettingTab {
 				.setIcon("trash")
 				.setTooltip("Clear cached SVGs")
 				.onClick(async () => {
-					localForage.clear((err) => {
-						if (err) {
-							console.error(err);
-							new Notice(`Error clearing cache: ${err}`, 4000);
-						} else {
-							new Notice("Successfully cleared cached SVGs.", 3000);
-						}
-					});
+					try {
+						await this.plugin.cache.clear();
+						new Notice("Successfully cleared cached SVGs.", 3000);
+					} catch (err) {
+						console.error(err);
+						new Notice(`Error clearing cache: ${err}`, 4000);
+					}
 				}));
 	}
 }

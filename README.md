@@ -202,6 +202,16 @@ If the "Test Toolchain" button reports that `latex` or `dvisvgm` cannot be found
 
 ---
 
+## 🔒 Security & Desktop Architecture
+
+This plugin is configured as desktop-only (`"isDesktopOnly": true`) because it relies on your local TeX distribution:
+
+- **Process Execution (`child_process.execFile`)**: The plugin executes your locally installed LaTeX compiler and `dvisvgm`. Commands are invoked strictly via `execFile` with segregated argument arrays (no shell interpolation), protecting against shell injection.
+- **Filesystem Access (`fs/promises`)**: Temporary `.tex`, `.dvi`/`.xdv`/`.pdf`, and `.svg` files are created exclusively inside an isolated temporary directory within your system's `tmpdir()` (e.g. `tmpdir()/tikz-XXXXXX`). This directory is deleted in a `finally` block immediately after conversion.
+- **Offline & Private**: The plugin performs zero external network calls and executes no dynamic script tags. Diagram source code is rendered locally on your machine and cached within local browser IndexedDB.
+
+---
+
 ## 📄 License & Acknowledgements
 
 - Licensed under the [MIT License](LICENSE.md).

@@ -1,7 +1,7 @@
 {
 	"id": "latex-tikz-renderer",
 	"name": "LaTeX and TikZ Renderer",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"minAppVersion": "1.0.0",
 	"description": "Render LaTeX and TikZ diagrams locally using your system TeX installation with support for any package.",
 	"author": "Agostino Cesarano",
