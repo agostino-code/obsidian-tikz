@@ -1,10 +1,10 @@
 {
 	"id": "obsidian-tikz",
-	"name": "LtxRender",
+	"name": "LaTeX & TikZ Renderer",
 	"version": "1.0.0",
-	"minAppVersion": "0.12.0",
-	"description": "A plugin to render LaTeX code using TikZ in Obsidian.",
-	"author": "agostino-code",
+	"minAppVersion": "1.0.0",
+	"description": "Render LaTeX and TikZ diagrams locally using your system TeX installation with support for any package.",
+	"author": "Agostino Cesarano",
 	"authorUrl": "https://github.com/agostino-code",
 	"isDesktopOnly": true
 }

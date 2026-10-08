@@ -1,7 +1,6 @@
 import esbuild from "esbuild";
 import process from "process";
 import builtins from 'builtin-modules';
-import inlineImportPlugin from "esbuild-plugin-inline-import";
 
 
 const banner =
@@ -54,8 +53,5 @@ esbuild.build({
 	logLevel: "info",
 	sourcemap: prod ? false : 'inline',
 	treeShaking: true,
-	outfile: 'main.js',
-	plugins: [
-		inlineImportPlugin()
-	]
+	outfile: 'main.js'
 }).catch(() => process.exit(1));

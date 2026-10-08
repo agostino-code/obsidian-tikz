@@ -1,27 +1,33 @@
 {
 	"name": "obsidian-tikz",
 	"version": "1.0.0",
-	"description": "A plugin to render LaTeX code using TikZ in Obsidian.",
+	"description": "Render LaTeX and TikZ diagrams locally using your system TeX installation.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
-	"keywords": [],
-	"author": "",
+	"keywords": [
+		"obsidian",
+		"obsidian-plugin",
+		"tikz",
+		"latex",
+		"pgfplots",
+		"circuitikz",
+		"chemfig",
+		"diagrams"
+	],
+	"author": "Agostino Cesarano",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.11.6",
-		"@types/pako": "^1.0.3",
 		"@typescript-eslint/eslint-plugin": "^5.2.0",
 		"@typescript-eslint/parser": "^5.2.0",
 		"builtin-modules": "^3.2.0",
 		"esbuild": "^0.28.0",
-		"esbuild-plugin-inline-import": "^1.0.1",
 		"localforage": "^1.9.0",
 		"obsidian": "latest",
-		"pako": "^2.0.4",
 		"tslib": "2.3.1",
 		"typescript": "4.4.4"
 	}
