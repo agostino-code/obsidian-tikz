@@ -32,6 +32,95 @@ export class TikzjaxSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	getSettingDefinitions() {
+		return [
+			{
+				name: 'LaTeX compiler path',
+				desc: 'Path or executable name for the LaTeX compiler (default: latex).',
+				control: {
+					type: 'text',
+					key: 'compilerPath',
+					placeholder: 'latex',
+				},
+			},
+			{
+				name: 'dvisvgm path',
+				desc: 'Path or executable name for dvisvgm (default: dvisvgm).',
+				control: {
+					type: 'text',
+					key: 'dvisvgmPath',
+					placeholder: 'dvisvgm',
+				},
+			},
+			{
+				name: 'Auto-wrap snippets',
+				desc: 'When enabled, code blocks without \\documentclass are automatically wrapped with default preamble.',
+				control: {
+					type: 'toggle',
+					key: 'autoWrapSnippet',
+				},
+			},
+			{
+				name: 'Default preamble',
+				desc: 'LaTeX preamble used when wrapping code blocks that do not specify a \\documentclass.',
+				control: {
+					type: 'textarea',
+					key: 'defaultPreamble',
+					placeholder: DEFAULT_PREAMBLE,
+					rows: 6,
+				},
+			},
+			{
+				name: 'Compilation timeout (seconds)',
+				desc: 'Maximum time in seconds to wait for LaTeX and dvisvgm before aborting.',
+				control: {
+					type: 'number',
+					key: 'timeoutSeconds',
+					min: 5,
+					defaultValue: 25,
+				},
+			},
+			{
+				name: 'Invert dark colors in dark mode',
+				desc: 'Invert dark colors in diagrams (e.g. axes, arrows) when in dark mode.',
+				control: {
+					type: 'toggle',
+					key: 'invertColorsInDarkMode',
+				},
+			},
+			{
+				name: 'Test LaTeX environment',
+				desc: 'Test whether your LaTeX compiler and dvisvgm can be found and executed.',
+				action: () => {
+					void (async () => {
+						try {
+							const result = await this.plugin.testToolchain();
+							new Notice(`LaTeX Environment Test:\n\n${result}`, 7000);
+						} catch (err: unknown) {
+							const msg = err instanceof Error ? err.message : String(err);
+							new Notice(`LaTeX Environment Test Failed:\n\n${msg}`, 8000);
+						}
+					})();
+				},
+			},
+			{
+				name: 'Clear cached SVGs',
+				desc: 'Clear the local diagram database to force all diagrams to re-render.',
+				action: () => {
+					void (async () => {
+						try {
+							await this.plugin.cache.clear();
+							new Notice("Successfully cleared cached SVGs.", 3000);
+						} catch (err: unknown) {
+							const msg = err instanceof Error ? err.message : String(err);
+							new Notice(`Error clearing cache: ${msg}`, 4000);
+						}
+					})();
+				},
+			},
+		];
+	}
+
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
@@ -138,9 +227,9 @@ export class TikzjaxSettingTab extends PluginSettingTab {
 					try {
 						await this.plugin.cache.clear();
 						new Notice("Successfully cleared cached SVGs.", 3000);
-					} catch (err) {
-						console.error(err);
-						new Notice(`Error clearing cache: ${err}`, 4000);
+					} catch (err: unknown) {
+						const msg = err instanceof Error ? err.message : String(err);
+						new Notice(`Error clearing cache: ${msg}`, 4000);
 					}
 				}));
 	}

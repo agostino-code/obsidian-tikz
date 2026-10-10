@@ -1,22 +1,29 @@
 import { Plugin, MarkdownPostProcessorContext } from 'obsidian';
 import { TikzjaxPluginSettings, DEFAULT_SETTINGS, TikzjaxSettingTab } from "./settings";
 
-import { execFile } from 'child_process';
-import * as fs from 'fs/promises';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { execFile } from 'node:child_process';
+import * as fs from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { DiagramCache } from './cache';
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 
-interface CommandOutput {
+export interface CommandOutput {
 	stdout: string;
 	stderr: string;
 }
 
-interface CommandError {
-	error: Error;
+export class CommandExecutionError extends Error {
 	stdout: string;
 	stderr: string;
+
+	constructor(message: string, stdout = '', stderr = '') {
+		super(message);
+		this.name = 'CommandExecutionError';
+		this.stdout = stdout;
+		this.stderr = stderr;
+		Object.setPrototypeOf(this, CommandExecutionError.prototype);
+	}
 }
 
 function runCommand(
@@ -26,17 +33,14 @@ function runCommand(
 ): Promise<CommandOutput> {
 	return new Promise((resolve, reject) => {
 		execFile(file, args, options, (error, stdout, stderr) => {
+			const stdoutStr = typeof stdout === 'string' ? stdout : '';
+			const stderrStr = typeof stderr === 'string' ? stderr : '';
 			if (error) {
-				const cmdErr: CommandError = {
-					error,
-					stdout: typeof stdout === 'string' ? stdout : '',
-					stderr: typeof stderr === 'string' ? stderr : ''
-				};
-				reject(cmdErr);
+				reject(new CommandExecutionError(error.message, stdoutStr, stderrStr));
 			} else {
 				resolve({
-					stdout: typeof stdout === 'string' ? stdout : '',
-					stderr: typeof stderr === 'string' ? stderr : ''
+					stdout: stdoutStr,
+					stderr: stderrStr
 				});
 			}
 		});
@@ -53,28 +57,33 @@ async function pathExists(filePath: string): Promise<boolean> {
 }
 
 export default class TikzjaxPlugin extends Plugin {
-	settings: TikzjaxPluginSettings;
+	settings: TikzjaxPluginSettings = Object.assign({}, DEFAULT_SETTINGS);
 	cache: DiagramCache = new DiagramCache();
 
-	async onload() {
-		await this.loadSettings();
+	override onload(): void {
+		void this.loadSettings();
 		this.addSettingTab(new TikzjaxSettingTab(this.app, this));
 
 		this.addSyntaxHighlighting();
 
-		this.registerMarkdownCodeBlockProcessor("tikz", this.processLatexCodeBlock.bind(this));
-		this.registerMarkdownCodeBlockProcessor("latex", this.processLatexCodeBlock.bind(this));
+		this.registerMarkdownCodeBlockProcessor("tikz", (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+			return this.processLatexCodeBlock(source, el, ctx);
+		});
+		this.registerMarkdownCodeBlockProcessor("latex", (source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+			return this.processLatexCodeBlock(source, el, ctx);
+		});
 	}
 
-	onunload() {
+	override onunload(): void {
 		this.removeSyntaxHighlighting();
 	}
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	async loadSettings(): Promise<void> {
+		const loadedData = (await this.loadData()) as Partial<TikzjaxPluginSettings> | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, loadedData ?? {});
 	}
 
-	async saveSettings() {
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
 
@@ -149,8 +158,7 @@ export default class TikzjaxPlugin extends Plugin {
 			const res = await runCommand(this.settings.compilerPath, ['--version'], { env, timeout });
 			compilerInfo = (res.stdout || res.stderr).split('\n')[0].trim();
 		} catch (err: unknown) {
-			const cmdErr = err as Partial<CommandError>;
-			const msg = cmdErr.error?.message || String(err);
+			const msg = err instanceof CommandExecutionError ? err.message : String(err);
 			throw new Error(`LaTeX compiler "${this.settings.compilerPath}" not found or failed:\n${msg}`);
 		}
 
@@ -159,15 +167,14 @@ export default class TikzjaxPlugin extends Plugin {
 			const res = await runCommand(this.settings.dvisvgmPath, ['--version'], { env, timeout });
 			dvisvgmInfo = (res.stdout || res.stderr).split('\n')[0].trim();
 		} catch (err: unknown) {
-			const cmdErr = err as Partial<CommandError>;
-			const msg = cmdErr.error?.message || String(err);
+			const msg = err instanceof CommandExecutionError ? err.message : String(err);
 			throw new Error(`dvisvgm "${this.settings.dvisvgmPath}" not found or failed:\n${msg}`);
 		}
 
 		return `Compiler: ${compilerInfo}\ndvisvgm: ${dvisvgmInfo}`;
 	}
 
-	async processLatexCodeBlock(source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext) {
+	async processLatexCodeBlock(source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext): Promise<void> {
 		const texContent = this.prepareLatexDocument(source);
 		const hash = this.getHash(texContent);
 
@@ -202,9 +209,11 @@ export default class TikzjaxPlugin extends Plugin {
 			try {
 				await runCommand(this.settings.compilerPath, compilerArgs, { cwd: tempDir, env, timeout });
 			} catch (compileErr: unknown) {
-				const cmdErr = compileErr as CommandError;
-				const summary = this.extractLatexError(cmdErr.stdout, cmdErr.stderr);
-				const fullLog = (cmdErr.stdout + '\n' + cmdErr.stderr).trim();
+				const cmdErr = compileErr instanceof CommandExecutionError ? compileErr : null;
+				const stdout = cmdErr ? cmdErr.stdout : '';
+				const stderr = cmdErr ? cmdErr.stderr : '';
+				const summary = this.extractLatexError(stdout, stderr);
+				const fullLog = (stdout + '\n' + stderr).trim();
 				this.renderError(el, "LaTeX compilation error", summary, fullLog);
 				return;
 			}
@@ -231,9 +240,11 @@ export default class TikzjaxPlugin extends Plugin {
 			try {
 				await runCommand(this.settings.dvisvgmPath, dvisvgmArgs, { cwd: tempDir, env, timeout });
 			} catch (svgErr: unknown) {
-				const cmdErr = svgErr as CommandError;
-				const fullLog = (cmdErr.stdout + '\n' + cmdErr.stderr).trim();
-				this.renderError(el, "dvisvgm conversion error", cmdErr.error?.message || "Failed to convert to SVG", fullLog);
+				const cmdErr = svgErr instanceof CommandExecutionError ? svgErr : null;
+				const stdout = cmdErr ? cmdErr.stdout : '';
+				const stderr = cmdErr ? cmdErr.stderr : '';
+				const fullLog = (stdout + '\n' + stderr).trim();
+				this.renderError(el, "dvisvgm conversion error", cmdErr ? cmdErr.message : "Failed to convert to SVG", fullLog);
 				return;
 			}
 
@@ -263,13 +274,33 @@ export default class TikzjaxPlugin extends Plugin {
 			.trim();
 	}
 
-	renderSvg(el: HTMLElement, svg: string) {
+	renderSvg(el: HTMLElement, svg: string): void {
 		el.empty();
 		const container = el.createDiv({ cls: 'tikz-container' });
+		let processedSvg = svg;
 		if (this.settings.invertColorsInDarkMode) {
-			svg = this.colorSVGinDarkMode(svg);
+			processedSvg = this.colorSVGinDarkMode(processedSvg);
 		}
-		container.innerHTML = svg;
+
+		try {
+			const parser = new DOMParser();
+			const parsedDoc = parser.parseFromString(processedSvg, "image/svg+xml");
+			const svgEl = parsedDoc.documentElement;
+
+			if (svgEl && svgEl.nodeName.toLowerCase() === "svg") {
+				// Strip any script elements to prevent code injection
+				const scripts = svgEl.querySelectorAll("script");
+				for (let i = 0; i < scripts.length; i++) {
+					scripts[i].remove();
+				}
+				container.replaceChildren(svgEl);
+			} else {
+				this.renderError(el, "SVG parsing error", "The generated SVG output is malformed.", "");
+			}
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : String(err);
+			this.renderError(el, "SVG rendering error", msg, "");
+		}
 	}
 
 	renderError(el: HTMLElement, title: string, summary: string, fullLog: string) {

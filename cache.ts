@@ -4,7 +4,7 @@ export class DiagramCache {
 	private readonly storeName = "svgImages";
 
 	private getDb(): Promise<IDBDatabase> {
-		if (this.dbPromise) return this.dbPromise;
+		if (this.dbPromise !== null) return this.dbPromise;
 
 		this.dbPromise = new Promise((resolve, reject) => {
 			if (typeof indexedDB === "undefined") {
@@ -18,7 +18,7 @@ export class DiagramCache {
 				}
 			};
 			req.onsuccess = () => resolve(req.result);
-			req.onerror = () => reject(req.error || new Error("Failed to open IndexedDB"));
+			req.onerror = () => reject(new Error(req.error?.message || "Failed to open IndexedDB"));
 		});
 
 		return this.dbPromise;
@@ -32,7 +32,7 @@ export class DiagramCache {
 				const store = tx.objectStore(this.storeName);
 				const req = store.get(key);
 				req.onsuccess = () => resolve((req.result as string) || null);
-				req.onerror = () => reject(req.error);
+				req.onerror = () => reject(new Error(req.error?.message || "Failed to read from cache"));
 			});
 
 			if (result) return result;
@@ -85,7 +85,7 @@ export class DiagramCache {
 				const store = tx.objectStore(this.storeName);
 				const req = store.put(value, key);
 				req.onsuccess = () => resolve();
-				req.onerror = () => reject(req.error);
+				req.onerror = () => reject(new Error(req.error?.message || "Failed to write to cache"));
 			});
 		} catch {
 			// Silently ignore caching errors
@@ -100,7 +100,7 @@ export class DiagramCache {
 				const store = tx.objectStore(this.storeName);
 				const req = store.clear();
 				req.onsuccess = () => resolve();
-				req.onerror = () => reject(req.error);
+				req.onerror = () => reject(new Error(req.error?.message || "Failed to clear cache"));
 			});
 		} catch (err) {
 			console.error("Failed to clear diagram cache", err);
