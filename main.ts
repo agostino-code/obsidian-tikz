@@ -56,9 +56,51 @@ async function pathExists(filePath: string): Promise<boolean> {
 	}
 }
 
+// dvisvgm names glyph ids by font and glyph index only (`g1-2`), so every
+// diagram using that font emits the same ids. Inlined into a single note,
+// `#g1-2` resolves to whichever diagram comes first, and the others borrow its
+// glyphs. Prefix each diagram's ids, and every reference to them, so each one
+// owns a private id space.
+function namespaceSvgIds(root: Element, prefix: string): void {
+	const ids = new Map<string, string>();
+	const elementsWithId = root.querySelectorAll("[id]");
+	for (let i = 0; i < elementsWithId.length; i++) {
+		const element = elementsWithId[i];
+		const oldId = element.getAttribute("id");
+		if (!oldId) continue;
+		ids.set(oldId, prefix + oldId);
+		element.setAttribute("id", prefix + oldId);
+	}
+	if (ids.size === 0) return;
+
+	const elements = root.querySelectorAll("*");
+	for (let i = 0; i < elements.length; i++) {
+		const attributes = elements[i].attributes;
+		for (let j = 0; j < attributes.length; j++) {
+			const attr = attributes[j];
+			let value = attr.value;
+			// `xlink:href` has localName "href", so this covers both spellings
+			// and leaves colours such as `#000000` alone.
+			if (attr.localName === "href" && value.charAt(0) === "#") {
+				const target = ids.get(value.slice(1));
+				if (target) value = "#" + target;
+			} else {
+				value = value.replace(/url\(#([^)]+)\)/g, (match, id: string) => {
+					const target = ids.get(id);
+					return target ? `url(#${target})` : match;
+				});
+			}
+			// Assign through the Attr node so namespaced attributes keep
+			// their namespace.
+			if (value !== attr.value) attr.value = value;
+		}
+	}
+}
+
 export default class TikzjaxPlugin extends Plugin {
 	settings: TikzjaxPluginSettings = Object.assign({}, DEFAULT_SETTINGS);
 	cache: DiagramCache = new DiagramCache();
+	private svgInstanceCount = 0;
 
 	override onload(): void {
 		void this.loadSettings();
@@ -293,6 +335,7 @@ export default class TikzjaxPlugin extends Plugin {
 				for (let i = 0; i < scripts.length; i++) {
 					scripts[i].remove();
 				}
+				namespaceSvgIds(svgEl, `tikz-${++this.svgInstanceCount}-`);
 				container.replaceChildren(svgEl);
 			} else {
 				this.renderError(el, "SVG parsing error", "The generated SVG output is malformed.", "");
